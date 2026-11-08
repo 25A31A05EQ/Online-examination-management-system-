@@ -1,0 +1,477 @@
+#include <functional>
+#include <iostream>
+#include <string>
+#include <vector>
+#include <queue>
+#include <fstream>
+#include <algorithm>
+using namespace std;
+
+// ================= STUDENT BST =================
+
+struct Student {
+    int id, marks;
+    string name;
+    Student *left, *right;
+
+    Student(int i, string n) {
+        id = i;
+        name = n;
+        marks = 0;
+        left = right = nullptr;
+    }
+};
+
+class StudentBST {
+    Student* root = nullptr;
+
+    Student* insert(Student* node, int id, string name) {
+        if (!node)
+            return new Student(id, name);
+
+        if (id < node->id)
+            node->left = insert(node->left, id, name);
+        else if (id > node->id)
+            node->right = insert(node->right, id, name);
+
+        return node;
+    }
+
+    Student* search(Student* node, int id) {
+        if (!node || node->id == id)
+            return node;
+
+        if (id < node->id)
+            return search(node->left, id);
+
+        return search(node->right, id);
+    }
+
+    void display(Student* node) {
+        if (!node) return;
+
+        display(node->left);
+
+        cout << "ID: " << node->id
+             << " | Name: " << node->name
+             << " | Marks: " << node->marks << endl;
+
+        display(node->right);
+    }
+
+    void collect(Student* node,
+                 priority_queue<pair<int, string>>& pq) {
+        if (!node) return;
+
+        collect(node->left, pq);
+        pq.push({node->marks, node->name});
+        collect(node->right, pq);
+    }
+
+public:
+    void addStudent(int id, string name) {
+        if (search(root, id)) {
+            cout << "Student ID already exists!\n";
+            return;
+        }
+
+        root = insert(root, id, name);
+        cout << "Student Registered Successfully!\n";
+    }
+
+    Student* findStudent(int id) {
+        return search(root, id);
+    }
+
+    void displayStudents() {
+        if (!root) {
+            cout << "No Student Records Found!\n";
+            return;
+        }
+
+        cout << "\n--- STUDENT RECORDS ---\n";
+        display(root);
+    }
+
+    void saveStudents() {
+        ofstream file("students.txt");
+
+        function<void(Student*)> save = [&](Student* node) {
+            if (!node) return;
+
+            save(node->left);
+            file << node->id << "|"
+                 << node->name << "|"
+                 << node->marks << "\n";
+            save(node->right);
+        };
+
+        save(root);
+        file.close();
+    }
+
+    void loadStudents() {
+        ifstream file("students.txt");
+        int id, marks;
+        string name, line;
+
+        while (getline(file, line)) {
+            size_t p1 = line.find('|');
+            size_t p2 = line.find('|', p1 + 1);
+
+            if (p1 == string::npos || p2 == string::npos)
+                continue;
+
+            try {
+                id = stoi(line.substr(0, p1));
+                name = line.substr(p1 + 1, p2 - p1 - 1);
+                marks = stoi(line.substr(p2 + 1));
+            } catch (...) {
+                continue;
+            }
+
+            addStudent(id, name);
+            Student* s = findStudent(id);
+
+            if (s) s->marks = marks;
+        }
+
+        file.close();
+    }
+
+    void displayRankings() {
+        priority_queue<pair<int, string>> pq;
+        collect(root, pq);
+
+        if (pq.empty()) {
+            cout << "No Students Available!\n";
+            return;
+        }
+
+        cout << "\n--- STUDENT RANKINGS ---\n";
+
+        int rank = 1;
+
+        while (!pq.empty()) {
+            cout << rank++ << ". "
+                 << pq.top().second
+                 << " - Marks: "
+                 << pq.top().first << endl;
+
+            pq.pop();
+        }
+    }
+};
+
+// ================= AVL TREE =================
+
+struct Exam {
+    int id;
+    string title;
+};
+
+struct AVLNode {
+    Exam data;
+    AVLNode *left, *right;
+    int height;
+
+    AVLNode(int id, string title) {
+        data = {id, title};
+        left = right = nullptr;
+        height = 1;
+    }
+};
+
+class ExamAVL {
+    AVLNode* root = nullptr;
+
+    int height(AVLNode* n) {
+        return n ? n->height : 0;
+    }
+
+    int balance(AVLNode* n) {
+        return n ? height(n->left) - height(n->right) : 0;
+    }
+
+    AVLNode* rotateRight(AVLNode* y) {
+        AVLNode* x = y->left;
+        AVLNode* t = x->right;
+
+        x->right = y;
+        y->left = t;
+
+        y->height = 1 + max(height(y->left),
+                            height(y->right));
+
+        x->height = 1 + max(height(x->left),
+                            height(x->right));
+
+        return x;
+    }
+
+    AVLNode* rotateLeft(AVLNode* x) {
+        AVLNode* y = x->right;
+        AVLNode* t = y->left;
+
+        y->left = x;
+        x->right = t;
+
+        x->height = 1 + max(height(x->left),
+                            height(x->right));
+
+        y->height = 1 + max(height(y->left),
+                            height(y->right));
+
+        return y;
+    }
+
+    AVLNode* insert(AVLNode* node, int id, string title) {
+        if (!node)
+            return new AVLNode(id, title);
+
+        if (id < node->data.id)
+            node->left = insert(node->left, id, title);
+        else if (id > node->data.id)
+            node->right = insert(node->right, id, title);
+        else
+            return node;
+
+        node->height = 1 + max(height(node->left),
+                               height(node->right));
+
+        int b = balance(node);
+
+        if (b > 1 && id < node->left->data.id)
+            return rotateRight(node);
+
+        if (b < -1 && id > node->right->data.id)
+            return rotateLeft(node);
+
+        if (b > 1 && id > node->left->data.id) {
+            node->left = rotateLeft(node->left);
+            return rotateRight(node);
+        }
+
+        if (b < -1 && id < node->right->data.id) {
+            node->right = rotateRight(node->right);
+            return rotateLeft(node);
+        }
+
+        return node;
+    }
+
+    void display(AVLNode* node) {
+        if (!node) return;
+
+        display(node->left);
+
+        cout << "Exam ID: " << node->data.id
+             << " | Exam: " << node->data.title << endl;
+
+        display(node->right);
+    }
+
+    AVLNode* search(AVLNode* node, int id) {
+        if (!node || node->data.id == id)
+            return node;
+
+        if (id < node->data.id)
+            return search(node->left, id);
+
+        return search(node->right, id);
+    }
+
+public:
+    void addExam(int id, string title) {
+        if (search(root, id)) {
+            cout << "Exam ID already exists!\n";
+            return;
+        }
+
+        root = insert(root, id, title);
+        cout << "Exam Added Successfully!\n";
+    }
+
+    AVLNode* findExam(int id) {
+        return search(root, id);
+    }
+
+    void displayExams() {
+        if (!root) {
+            cout << "No Exams Available!\n";
+            return;
+        }
+
+        cout << "\n--- AVAILABLE EXAMS ---\n";
+        display(root);
+    }
+};
+
+// ================= ONLINE EXAM =================
+
+void conductExam(StudentBST& students, ExamAVL& exams) {
+    int sid, eid, score = 0;
+    char answer;
+
+    cout << "Enter Student ID: ";
+    cin >> sid;
+
+    Student* s = students.findStudent(sid);
+
+    if (!s) {
+        cout << "Student Not Found!\n";
+        return;
+    }
+
+    cout << "Enter Exam ID: ";
+    cin >> eid;
+
+    AVLNode* e = exams.findExam(eid);
+
+    if (!e) {
+        cout << "Exam Not Found!\n";
+        return;
+    }
+
+    cout << "\nExam: " << e->data.title << endl;
+    cout << "\nEach Question Carries 10 Marks\n";
+
+    cout << "\n1. Which language is used in this project?\n";
+    cout << "A. Java  B. C++  C. Python\n";
+    cout << "Answer: ";
+    cin >> answer;
+
+    if (answer == 'B' || answer == 'b')
+        score += 10;
+
+    cout << "\n2. Which data structure follows FIFO?\n";
+    cout << "A. Stack  B. Queue  C. Tree\n";
+    cout << "Answer: ";
+    cin >> answer;
+
+    if (answer == 'B' || answer == 'b')
+        score += 10;
+
+    cout << "\n3. Which tree stores sorted data?\n";
+    cout << "A. BST  B. Graph  C. Stack\n";
+    cout << "Answer: ";
+    cin >> answer;
+
+    if (answer == 'A' || answer == 'a')
+        score += 10;
+
+    s->marks = score;
+
+    cout << "\n========== EXAM RESULT ==========\n";
+    cout << "Student Name: " << s->name << endl;
+    cout << "Exam Name: " << e->data.title << endl;
+    cout << "Total Marks: " << score << "/30\n";
+
+    if (score >= 20)
+        cout << "Result: PASS\n";
+    else
+        cout << "Result: NEEDS IMPROVEMENT\n";
+
+    cout << "=================================\n";
+
+    students.saveStudents();
+}
+
+// ================= MAIN PROGRAM =================
+
+int main() {
+    StudentBST students;
+    ExamAVL exams;
+
+    students.loadStudents();
+
+    int choice, id;
+    string name;
+
+    cout << "\n========================================\n";
+    cout << " ONLINE EXAMINATION MANAGEMENT SYSTEM\n";
+    cout << "             USING TREES\n";
+    cout << "========================================\n";
+
+    do {
+        cout << "\n1. Register Student";
+        cout << "\n2. Search Student";
+        cout << "\n3. Display Students";
+        cout << "\n4. Add Examination";
+        cout << "\n5. Display Examinations";
+        cout << "\n6. Conduct Online Exam";
+        cout << "\n7. Display Student Rankings";
+        cout << "\n8. Exit";
+
+        cout << "\n\nEnter Your Choice: ";
+        cin >> choice;
+
+        switch (choice) {
+            case 1:
+                cout << "Enter Student ID: ";
+                cin >> id;
+
+                cout << "Enter Student Name: ";
+                cin >> ws;
+                getline(cin, name);
+
+                students.addStudent(id, name);
+                students.saveStudents();
+                break;
+
+            case 2: {
+                cout << "Enter Student ID: ";
+                cin >> id;
+
+                Student* s = students.findStudent(id);
+
+                if (s)
+                    cout << "Student Found: "
+                         << s->name
+                         << " | Marks: " << s->marks << endl;
+                else
+                    cout << "Student Not Found!\n";
+
+                break;
+            }
+
+            case 3:
+                students.displayStudents();
+                break;
+
+            case 4:
+                cout << "Enter Exam ID: ";
+                cin >> id;
+
+                cout << "Enter Exam Name: ";
+                cin >> ws;
+                getline(cin, name);
+
+                exams.addExam(id, name);
+                break;
+
+            case 5:
+                exams.displayExams();
+                break;
+
+            case 6:
+                conductExam(students, exams);
+                break;
+
+            case 7:
+                students.displayRankings();
+                break;
+
+            case 8:
+                students.saveStudents();
+                cout << "Thank You! Program Closed.\n";
+                break;
+
+            default:
+                cout << "Invalid Choice! Try Again.\n";
+        }
+
+    } while (choice != 8);
+
+    return 0;
+}
